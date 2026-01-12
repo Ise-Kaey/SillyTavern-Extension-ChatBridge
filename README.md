@@ -1,4 +1,5 @@
-# Full Traanslate in English
+ Full Translate in English
+ -------------------------
 
 # SillyTavern Extension - ChatBridge 
 An API bridging extension for SillyTavern that allows external applications to reuse SillyTavern's conversation functionality, enabling chat in SillyTavern as if calling an API.
