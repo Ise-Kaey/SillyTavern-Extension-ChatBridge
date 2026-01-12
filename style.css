@@ -161,7 +161,7 @@
     font-family: monospace;
 }
 
-/* 状态显示样式 */
+/* Status display style */
 .ChatBridgeExtension_status {
     margin: 10px 0;
 }
@@ -171,7 +171,7 @@
     margin-left: 8px;
 }
 
-/* 标签样式 */
+/* label style */
 .ChatBridgeExtension_connection label {
     color: var(--text-color);
 }
