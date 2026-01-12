@@ -19,7 +19,7 @@ let ws;
 function updateDebugLog(message) {
     const debugLog = $('#debug_log');
     if (debugLog.length === 0) {
-        console.warn('找不到调试日志元素');
+        console.warn('Debug log element not found');
         return;
     }
     const timestamp = new Date().toLocaleTimeString();
@@ -27,16 +27,16 @@ function updateDebugLog(message) {
     const newLine = `[${timestamp}] ${message}\n`;
     debugLog.val(currentContent + newLine);
     debugLog.scrollTop(debugLog[0].scrollHeight);
-    // 同时在控制台输出，方便调试
+    // At the same time, it is output on the console to facilitate debugging.
     console.log(`[${extensionName}] ${message}`);
 }
 
 function updateWSStatus(connected) {
     const status = $('#ws_status');
     if (connected) {
-        status.text('已连接').css('color', 'green');
+        status.text('Connected').css('color', 'green');
     } else {
-        status.text('未连接').css('color', 'red');
+        status.text('Not connected').css('color', 'red');
     }
 }
 function convertOpenAIToSTMessage(msg) {
@@ -44,7 +44,7 @@ function convertOpenAIToSTMessage(msg) {
     const currentTime = new Date().toLocaleString();
 
     return {
-        name: isUser ? 'user' : 'Assistant', // 注意：用户名要小写
+        name: isUser ? 'user' : 'Assistant', // Note: Username must be lowercase
         is_user: isUser,
         is_system: false,
         send_date: currentTime,
@@ -61,23 +61,23 @@ function convertOpenAIToSTMessage(msg) {
 function setupWebSocket() {
     const wsUrl = $('#ws_url').val();
     const wsPort = $('#ws_port').val();
-    updateDebugLog(`尝试连接WebSocket服务器: ws://${wsUrl}:${wsPort}`);
+    updateDebugLog(`Try to connect to websocket server: ws://${wsUrl}:${wsPort}`);
 
     ws = new WebSocket(`ws://${wsUrl}:${wsPort}`);
 
     ws.onopen = () => {
         updateWSStatus(true);
         updateConnectionButtons(true);
-        updateDebugLog('WebSocket连接已建立');
+        updateDebugLog('websocket connection established');
         //sendChatHistory();
     };
     ws.onmessage = async (event) => {
         try {
             const data = JSON.parse(event.data);
-            updateDebugLog(`收到消息: ${JSON.stringify(data)}`);
+            updateDebugLog(`message received: ${JSON.stringify(data)}`);
 
             if (data.type === 'user_request') {
-                updateDebugLog('收到用户请求');
+                updateDebugLog('User request received');
                 if (data.content?.messages) {
                     const context = getContext();
                     const newChat = data.content.messages
@@ -88,26 +88,26 @@ function setupWebSocket() {
                     context.clearChat();
                     context.printMessages();
                     context.eventSource.emit(context.eventTypes.CHAT_CHANGED, context.getCurrentChatId());
-                    updateDebugLog(`已更新聊天内容，共${context.chat.length}条消息`);
+                    updateDebugLog(`Chat content has been updated, total ${context.chat.length} messages`);
                     $('#send_but').click();
                 } else {
-                    updateDebugLog('错误：消息格式不正确');
+                    updateDebugLog('Error: Message format is incorrect');
                 }
             }
         } catch (error) {
-            updateDebugLog(`处理消息时出错: ${error.message}`);
-            console.error(error); // 输出完整错误信息
+            updateDebugLog(`An error occurred while processing the message: ${error.message}`);
+            console.error(error); // Output complete error message
         }
     };
     ws.onclose = () => {
         updateWSStatus(false);
         updateConnectionButtons(false);
-        updateDebugLog('WebSocket连接已关闭');
+        updateDebugLog('websocket connection closed');
     };
 
     ws.onerror = (error) => {
         updateWSStatus(false);
-        updateDebugLog(`WebSocket错误: ${error}`);
+        updateDebugLog(`websocket error: ${error}`);
     };
 }
 
@@ -124,16 +124,16 @@ function disconnectWebSocket() {
     }
     updateWSStatus(false);
     updateConnectionButtons(false);
-    updateDebugLog('已断开WebSocket连接');
-    // 如果启用了自动尝试连接，立即开始计时
+    updateDebugLog('websocket connection disconnected');
+    // If automatic connection attempts are enabled, start timing immediately
     if (extension_settings[extensionName].autoConnect) {
         startAutoConnect();
     }
 }
 
-//自动尝试连接
+//Automatically try to connect
 let autoConnectTimer = null;
-//自动尝试连接功能
+//Automatically try connection function
 function startAutoConnect() {
     if (autoConnectTimer) {
         clearInterval(autoConnectTimer);
@@ -141,7 +141,7 @@ function startAutoConnect() {
     
     autoConnectTimer = setInterval(() => {
         if (!ws || ws.readyState === WebSocket.CLOSED) {
-            updateDebugLog('自动尝试连接尝试中...');
+            updateDebugLog('Automatically trying to connect...');
             setupWebSocket();
         }
     }, 5000);
@@ -158,9 +158,9 @@ function stopAutoConnect() {
 
 jQuery(async () => {
 
-    // // 事件系统测试代码
+    // // Event system test code
     // const context = getContext();
-    // updateDebugLog('=== 可用事件类型 ===');
+    // updateDebugLog('=== Available event types ===');
     // for (const eventType in context.eventTypes) {
     //     updateDebugLog(`${eventType}: ${context.eventTypes[eventType]}`);
     // }
@@ -178,41 +178,41 @@ jQuery(async () => {
     });
     setupWebSocket();
 
-    //自动尝试连接
+    //Automatically try to connect
     $('#ws_auto_connect').prop('checked', extension_settings[extensionName].autoConnect);
-    // 添加自动尝试连接复选框的事件处理
+    // Add event handling for the Automatically try to connect checkbox
     $('#ws_auto_connect').on('change', function() {
         const isChecked = $(this).prop('checked');
         extension_settings[extensionName].autoConnect = isChecked;
         saveSettingsDebounced();
         
         if (isChecked) {
-            updateDebugLog('已启用自动尝试连接');
+            updateDebugLog('Automatic connection attempts enabled');
             startAutoConnect();
         } else {
-            updateDebugLog('已禁用自动尝试连接');
+            updateDebugLog('Automatic connection attempts disabled');
             stopAutoConnect();
         }
     });
     
-    // 如果启用了自动尝试连接，则启动定时器
+    // If automatic connection attempts are enabled, start the timer
     if (extension_settings[extensionName].autoConnect) {
         startAutoConnect();
     }
 
-    updateDebugLog('扩展初始化完成');
+    updateDebugLog('Extension initialization completed');
 
-    // 以下为测试代码
+    // The following is the test code
     // $('#show_chat').on('click', () => {
     //     const context = getContext();
 
-    //     updateDebugLog('=== 当前聊天状态 ===');
+    //     updateDebugLog('=== Current chat status ===');
     //     updateDebugLog('name1: ' + context.name1);
     //     updateDebugLog('name2: ' + context.name2);
     //     updateDebugLog('characterId: ' + context.characterId);
-    //     updateDebugLog('当前聊天内容:');
+    //     updateDebugLog('Current chat content:');
     //     updateDebugLog(JSON.stringify(context.chat, null, 2));
-    //     updateDebugLog('当前聊天元数据:');
+    //     updateDebugLog('Current chat metadata:');
     //     updateDebugLog(JSON.stringify(context.chatMetadata, null, 2));
     // });
 
@@ -241,15 +241,15 @@ jQuery(async () => {
     //                 "reasoning_duration": null,
     //                 "token_count": 64
     //             },
-    //             "name": "测试",
+    //             "name": "test",
     //             "is_user": false,
     //             "send_date": "February 26, 2025 2:09pm",
-    //             "mes": "我不太确定你在问什么。你可以更详细地说明你的问题吗？",
+    //             "mes": "I'm not quite sure what you're asking. can you explain your problem in more detail？",
     //             "title": "",
     //             "gen_started": "2025-02-26T06:09:43.173Z",
     //             "gen_finished": "2025-02-26T06:09:45.338Z",
     //             "swipe_id": 0,
-    //             "swipes": ["我不太确定你在问什么。你可以更详细地说明你的问题吗？"],
+    //             "swipes": ["I'm not quite sure what you're asking. Can you explain your problem in more detail?"],
     //             "swipe_info": [{
     //                 "send_date": "February 26, 2025 2:09pm",
     //                 "gen_started": "2025-02-26T06:09:43.173Z",
@@ -287,7 +287,7 @@ jQuery(async () => {
     //                 "reasoning_duration": null,
     //                 "token_count": 3
     //             },
-    //             "name": "测试",
+    //             "name": "test",
     //             "is_user": false,
     //             "send_date": "February 28, 2025 12:43am",
     //             "mes": "Hello!?",
@@ -317,8 +317,8 @@ jQuery(async () => {
 
 
     //     try {
-    //         //必须先启用新对话
-    //         //先清空再添加
+    //         //New conversations must be enabled first
+    //         //Clear first and then add
     //         chat.splice(0, chat.length, ...nativeChat);
     //         //chat.splice(0, chat.length, ...nativeChat2);
     //         context.clearChat();
@@ -326,10 +326,10 @@ jQuery(async () => {
     //         context.eventSource.emit(context.eventTypes.CHAT_CHANGED, context.getCurrentChatId());
             
     //     } catch (error) {
-    //         updateDebugLog(`替换聊天时出错: ${error.message}`);
+    //         updateDebugLog(`Error while replacing chat: ${error.message}`);
     //         console.error(error);
     //     }
     // });
 
-    // updateDebugLog('测试功能已初始化');
+    // updateDebugLog('Test function has been initialized');
 });
