@@ -1,31 +1,32 @@
 """
 sequenceDiagram
-    participant User as 外部应用
-    participant UserAPI as 用户接口
+    participant User as external application
+    participant UserAPI as user interface
     participant WS as WebSocket
     participant ST as SillyTavern
-    participant STAPI as ST接口
-    participant LLMAPI as LLM接口
-    participant LLM as 外部LLM
-    
-    USER,ST,LLM均属外部逻辑,此脚本不应包含具体实现
+    participant STAPI as ST interface
+    participant LLMAPI as LLM interface
+    participant LLM as external LLM
 
-    User->>UserAPI: 1.调用API(OpenAI格式)
-    UserAPI->>WS: 2.转发请求到WebSocket
-    WS->>ST: 3.通知ST处理请求
-    ST->>STAPI: 4.处理后调用ST接口
-    STAPI->>LLMAPI: 5.转发到LLM接口
-    LLMAPI->>LLM: 6.调用外部LLM
-    LLM-->>LLMAPI: 7.返回响应
-    LLMAPI-┬->>STAPI: 8a.转发响应
-           └->>UserAPI: 8b.同时转发响应
-    STAPI-->ST: 9a.返回给ST
-    UserAPI-->>User: 9b.返回给用户
+    USER, ST, and LLM are all external logic. This script should not contain specific implementations.
+    
+    User->>UserAPI: 1. Call API (OpenAI format)
+    UserAPI->>WS: 2. Forward the request to WebSocket
+    WS->>ST: 3. Notify ST to process the request
+    ST->>STAPI: 4. Call the ST interface after processing
+    STAPI->>LLMAPI: 5. Forward to LLM interface
+    LLMAPI->>LLM: 6. Call external LLM
+    LLM->>LLMAPI: 7. Return response
+    LLMAPI-┬->> STAPI: 8a. Forward response
+           └- UserAPI: 8b. Forward responses simultaneously
+    STAPI->> ST: 9a. Return to ST
+    UserAPI->>User: 9b. Return to user
 """
-#            "REMOVED",
-#        "base_url": "https://api.aiuvdt.top",
-#
-        #"base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+
+# "REMOVED",
+#   "base_url": "https://api.aiuvdt.top",
+#   "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+
 import json
 import asyncio
 import websockets
@@ -59,22 +60,22 @@ class ChatBridgeForwarder:
         self.response_futures = {}
         
     async def start(self):
-        # 启动WebSocket服务器
+        # Start websocket server
         ws_server = websockets.serve(
             self.handle_websocket,
             self.settings['websocket']['host'],
             self.settings['websocket']['port']
         )
 
-        # 创建ST API服务器
+        # Create ST API server
         st_app = web.Application()
-        # 修改路由处理
+        # Modify routing processing
         st_app.router.add_get('/models', self.handle_models)
         st_app.router.add_get('/v1/models', self.handle_models)
         st_app.router.add_post('/chat/completions', self.handle_chat_completions)
         st_app.router.add_post('/v1/chat/completions', self.handle_chat_completions)
             
-        #初始化ST API服务器
+        # Initialize ST API server
         st_runner = web.AppRunner(st_app)
         await st_runner.setup()
         st_site = web.TCPSite(
@@ -83,7 +84,7 @@ class ChatBridgeForwarder:
             self.settings['st_api']['port']
         )
 
-        # 创建用户API服务器
+        # Create user api server
         user_app = web.Application()
         user_app.router.add_post('/v1/chat/completions', self.handle_user_api)
         user_runner = web.AppRunner(user_app)
@@ -94,16 +95,16 @@ class ChatBridgeForwarder:
             self.settings['user_api']['port']
         )
 
-        # 启动所有服务器
+        # Start all servers
         await asyncio.gather(
             ws_server,
             st_site.start(),
             user_site.start()
         )
         
-        logger.info(f"WebSocket服务器运行在 ws://{self.settings['websocket']['host']}:{self.settings['websocket']['port']}")
-        logger.info(f"ST API服务器运行在 http://{self.settings['st_api']['host']}:{self.settings['st_api']['port']}")
-        logger.info(f"用户API服务器运行在 http://{self.settings['user_api']['host']}:{self.settings['user_api']['port']}")
+        logger.info(f"The Websocket Server runs on ws://{self.settings['websocket']['host']}:{self.settings['websocket']['port']}")
+        logger.info(f"The ST API Serber rubs on http://{self.settings['st_api']['host']}:{self.settings['st_api']['port']}")
+        logger.info(f"The user api server runs on http://{self.settings['user_api']['host']}:{self.settings['user_api']['port']}")
 
     async def handle_websocket(self, websocket):
         self.ws_clients.add(websocket)
@@ -111,9 +112,9 @@ class ChatBridgeForwarder:
             async for message in websocket:
                 try:
                     data = json.loads(message)
-                    logger.info(f"收到WebSocket消息: {data}")
+                    logger.info(f"Receive websocket message: {data}")
                     
-                    # 处理ST的响应
+                    # Handle ST's response
                     if data.get('type') == 'st_response':
                         request_id = data.get('id')
                         if request_id in self.response_futures:
@@ -122,12 +123,12 @@ class ChatBridgeForwarder:
                                 future.set_result(data.get('content'))
                                 
                 except json.JSONDecodeError:
-                    logger.error("无效的WebSocket消息格式")
+                    logger.error("Invalid websocket message format")
         finally:
             self.ws_clients.remove(websocket)
 
     async def handle_user_api(self, request: web.Request) -> web.Response:
-        """处理来自用户的API请求"""
+        """Handle api requests from users"""
         if request.headers.get('Authorization') != f"Bearer {self.settings['user_api']['api_key']}":
             return web.Response(status=401)
 
@@ -135,10 +136,10 @@ class ChatBridgeForwarder:
             request_data = await request.json()
             request_id = str(uuid.uuid4())
             is_stream = request_data.get('stream', False)
-            logger.info(f"用户API请求 ID={request_id}, stream={is_stream}")
+            logger.info(f"user api request ID={request_id}, stream={is_stream}")
 
             if is_stream:
-                # 创建流式响应
+                # Create streaming responses
                 stream_response = web.StreamResponse(
                     status=200,
                     headers={
@@ -149,12 +150,12 @@ class ChatBridgeForwarder:
                 )
                 await stream_response.prepare(request)
                 
-                # 创建事件队列
+                # Create event queue
                 queue = asyncio.Queue() 
                 self.response_futures[request_id] = queue
 
                 try:
-                    # 发送WebSocket消息
+                    # Send websocket message
                     ws_message = {
                         'type': 'user_request',
                         'id': request_id,
@@ -167,19 +168,19 @@ class ChatBridgeForwarder:
                     for ws in self.ws_clients:
                         try:
                             await ws.send(json.dumps(ws_message))
-                            logger.info(f"已发送请求到WebSocket: ID={request_id}")
+                            logger.info(f"Request sent to websocket: ID={request_id}")
                             break
                         except Exception as e:
-                            logger.error(f"发送WebSocket消息失败: {e}")
+                            logger.error(f"Failed to send websocket message: {e}")
                             continue
 
-                    # 等待并转发响应块
+                    # Wait for and forward response chunk
                     received_chunks = []
                     while True:
                         try:
                             chunk = await asyncio.wait_for(queue.get(), timeout=60.0)
                             
-                            # 只处理非空的有效数据
+                            # Only process non-empty valid data
                             if chunk and isinstance(chunk, str):
                                 chunk = chunk.strip()
                                 if not chunk:
@@ -187,34 +188,34 @@ class ChatBridgeForwarder:
                                     
                                 if chunk == '[DONE]':
                                     await stream_response.write(b'data: [DONE]\n\n')
-                                    logger.info(f"发送流式响应结束标记: ID={request_id}")
+                                    logger.info(f"Send streaming response end tag: ID={request_id}")
                                     break
                                     
-                                # 确保响应格式正确
+                                # Make sure the response is well formatted
                                 if not chunk.startswith('data: '):
                                     chunk = f'data: {chunk}'
                                 if not chunk.endswith('\n\n'):
                                     chunk = f'{chunk}\n\n'
                                     
-                                logger.debug(f"发送响应块: {chunk.strip()}")
+                                logger.debug(f"Send response block: {chunk.strip()}")
                                 await stream_response.write(chunk.encode())
                                 
                         except asyncio.TimeoutError:
-                            logger.warning(f"等待响应块超时: ID={request_id}")
+                            logger.warning(f"Timeout waiting for response block: ID={request_id}")
                             await stream_response.write(b'data: [DONE]\n\n')
                             break
                             
                     return stream_response
                     
                 finally:
-                    # 清理队列
+                    # clear queue
                     self.response_futures.pop(request_id, None)
             else:
-                # 处理非流式请求
+                # Handle non-streaming requests
                 future = asyncio.Future()
                 self.response_futures[request_id] = future
                 
-                # 发送WebSocket消息
+                # Send websocket message
                 ws_message = {
                     'type': 'user_request',
                     'id': request_id,
@@ -227,26 +228,26 @@ class ChatBridgeForwarder:
                 for ws in self.ws_clients:
                     try:
                         await ws.send(json.dumps(ws_message))
-                        logger.info(f"已发送请求到WebSocket: ID={request_id}")
+                        logger.info(f"Request sent to websocket: ID={request_id}")
                         break
                     except Exception as e:
-                        logger.error(f"发送WebSocket消息失败: {e}")
+                        logger.error(f"Failed to send websocket message: {e}")
                         continue
                 
                 try:
-                    # 等待响应
+                    # Waiting for response
                     response = await asyncio.wait_for(future, timeout=60.0)
                     return web.json_response(response)
                 finally:
                     self.response_futures.pop(request_id, None)
 
         except Exception as e:
-            logger.error(f"处理用户API请求失败: {str(e)}", exc_info=True)
+            logger.error(f"Failed to handle user api request: {str(e)}", exc_info=True)
             return web.Response(status=500, text=f"Internal Server Error: {str(e)}")
       
     async def handle_models(self, request: web.Request) -> web.Response:
-        """处理模型列表请求"""
-        logger.info(f"收到models请求: {request.path}")
+        """Handle model list requests"""
+        logger.info(f"Received models request: {request.path}")
         api_key = self.key_rotator.get_next_key()
         headers = {
             'Authorization': f'Bearer {api_key}',
@@ -257,31 +258,31 @@ class ChatBridgeForwarder:
             async with aiohttp.ClientSession() as session:
                 #remove v1/ of llm_api
                 target_url = f"{self.settings['llm_api']['base_url']}/models"
-                logger.info(f"转发请求到: {target_url}")
+                logger.info(f"Forward the request to: {target_url}")
                 async with session.get(target_url, headers=headers) as response:
                     response_data = await response.json()
-                    logger.info(f"模型列表响应: {response_data}")
+                    logger.info(f"model list response: {response_data}")
                     return web.json_response(response_data)
         except Exception as e:
-            logger.error(f"获取模型列表失败: {str(e)}")
+            logger.error(f"Failed to get model list: {str(e)}")
             return web.Response(status=500, text=str(e))
 
     async def handle_chat_completions(self, request: web.Request) -> web.Response:
         try:
             request_data = await request.json()
             is_stream = request_data.get('stream', False)
-            logger.info(f"收到chat completion请求: PATH={request.path}, STREAM={is_stream}")
+            logger.info(f"Receive chat completion request: PATH={request.path}, STREAM={is_stream}")
 
-            # 找到活跃的用户请求
+            # Find active user requests
             active_user_futures = {
                 rid: future for rid, future in self.response_futures.items()
                 if not getattr(future, 'done', lambda: True)()
             }
             
             if active_user_futures:
-                logger.info(f"找到 {len(active_user_futures)} 个活跃的用户请求")
+                logger.info(f"active user requests {len(active_user_futures)} active user requests")
             else:
-                logger.warning("没有找到活跃的用户请求")
+                logger.warning("No active user request found")
 
             api_key = self.key_rotator.get_next_key()
             headers = {
@@ -293,7 +294,7 @@ class ChatBridgeForwarder:
             async with aiohttp.ClientSession() as session:
                 async with session.post(target_url, json=request_data, headers=headers) as llm_response:
                     if llm_response.headers.get('content-type') == 'text/event-stream':
-                        logger.info("处理流式响应")
+                        logger.info("Handling streaming responses")
                         st_response = web.StreamResponse(
                             status=llm_response.status,
                             headers={'Content-Type': 'text/event-stream'}
@@ -308,54 +309,54 @@ class ChatBridgeForwarder:
                         async for chunk in llm_response.content:
                             if chunk:
                                 chunk_str = chunk.decode()
-                                logger.debug(f"收到数据块: {chunk_str[:100]}...")
+                                logger.debug(f"data block received: {chunk_str[:100]}...")
                                 
-                                # 发送到ST
+                                # send to ST
                                 await st_response.write(chunk)
                                 
-                                # 转发到用户队列
+                                # forward to user queue
                                 if active_user_queues:
                                     for queue_id, queue in active_user_queues.items():
                                         try:
                                             await queue.put(chunk_str)
-                                            logger.debug(f"转发数据块到用户队列 {queue_id}")
+                                            logger.debug(f"Forward the data block to the user queue {queue_id}")
                                         except Exception as e:
-                                            logger.error(f"转发到用户队列失败 {queue_id}: {e}")
+                                            logger.error(f"Forwarding to user queue failed {queue_id}: {e}")
 
-                        # 发送结束标记
+                        # Send end tag
                         if active_user_queues:
                             for queue_id, queue in active_user_queues.items():
                                 try:
                                     await queue.put('[DONE]')
-                                    logger.info(f"发送结束标记到用户队列 {queue_id}")
+                                    logger.info(f"Send end tag to user queue {queue_id}")
                                 except Exception as e:
-                                    logger.error(f"发送结束标记失败 {queue_id}: {e}")
+                                    logger.error(f"Failed to send end tag {queue_id}: {e}")
 
                         return st_response
 
                     else:
-                        logger.info("处理非流式响应")
+                        logger.info("Handling non-streaming responses")
                         response_data = await llm_response.json()
-                        logger.info(f"收到LLM响应: {str(response_data)[:200]}...")
+                        logger.info(f"LLM response received: {str(response_data)[:200]}...")
 
-                        # 转发到所有等待的用户请求
+                        # Forward to all pending user requests
                         futures_updated = False
                         for request_id, future in list(active_user_futures.items()):
                             try:
                                 if isinstance(future, asyncio.Future) and not future.done():
                                     future.set_result(response_data)
-                                    logger.info(f"成功设置用户请求结果: ID={request_id}")
+                                    logger.info(f"Successfully set user request result: ID={request_id}")
                                     futures_updated = True
                             except Exception as e:
-                                logger.error(f"设置用户请求结果失败 {request_id}: {e}")
+                                logger.error(f"Setting user request result failed {request_id}: {e}")
 
                         if not futures_updated:
-                            logger.warning("没有成功更新任何用户请求的结果")
+                            logger.warning("No user-requested results were successfully updated.")
 
                         return web.json_response(response_data, status=llm_response.status)
 
         except Exception as e:
-            error_msg = f"处理聊天完成请求失败: {str(e)}"
+            error_msg = f"Failed to process chat completion request: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return web.Response(status=500, text=error_msg)
     
@@ -364,7 +365,7 @@ async def main():
     forwarder = ChatBridgeForwarder(settings_path)
     await forwarder.start()
     try:
-        await asyncio.Future()  # 保持服务器运行
+        await asyncio.Future()  # Keep the server running
     except KeyboardInterrupt:
         pass
 
